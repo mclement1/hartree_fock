@@ -4,10 +4,12 @@
 #include <vector>
 #include <algorithm>
 #include <iterator>
+#include <Eigen/Eigen>
+
 
 using namespace std;
 using namespace libint2;
-
+using namespace Eigen;
 
 
 int main() {
@@ -15,8 +17,6 @@ int main() {
     // Initialize libint
 
     libint2::initialize();
-
-    // Initialize eigen
 
     // Read in geometry and create basis set object
 
@@ -56,18 +56,75 @@ int main() {
                       obs.max_l()
                       );
 
+    // Map shell index to basis function index
 
+    auto shell2bf = obs.shell2bf();
+   
+ 
     // Compute overlap integrals
+
+    const auto& s_buf_vec = s_engine.results();
+
+    for(auto s1=0; s1!=obs.size(); ++s1) {
+        for(auto s2=0; s2!=obs.size(); ++s2) {
+        
+            s_engine.compute(obs[s1], obs[s2]);
+            auto s_shellset = s_buf_vec[0]; // points to the location of the first integral
+            if (s_shellset == nullptr)
+                continue;
+
+        }
+    }    
+    
 
     // Compute kinetic energy integrals
 
+    const auto& t_buf_vec = t_engine.results();
+
+    for(auto s1=0; s1!=obs.size(); ++s1) {
+        
+        t_engine.compute(obs[s1], obs[s1]);
+        auto t_shellset = t_buf_vec[0]; // points to the location of the first integral
+        if (t_shellset == nullptr)
+        continue;
+    }   
+    
     // Compute nuclear attraction integrals
+
+    const auto& v_buf_vec = v_engine.results();
+
+    for(auto s1=0; s1!=obs.size(); ++s1) {
+
+        v_engine.compute(obs[s1], obs[s1]);
+        auto v_shellset = v_buf_vec[0]; // points to the location of the first integral
+        if (v_shellset == nullptr)
+        continue;
+    }   
+
 
     // Compute two-body integrals
 
+    /* const auto& eri_buf_vec = eri_engine.results();
+
+    for(auto s1=0; s1!=obs.size(); ++s1) {
+        for(auto s2=0; s2!=obs.size(); ++s2) {
+            for(auto s3=0; s3!=obs.size(); ++s3) {
+                for(auto s4=0; s4!=obs.size(); ++s4) {
+
+                    s_engine.compute(obs[s1], obs[s2], obs[s3], obs[s4]);
+                    auto eri_shellset = eri_buf_vec[0]; // points to the location of the first integral
+                    if (eri_shellset == nullptr)
+                        continue;
+                }        
+            }
+        }
+    }    
+ */
     // Form core-Hamiltonian matrix, H
 
     // Form overlap matrix, S
+
+    // Map<MatrixXd> s_mat(s_shellset, obs.size(), obs.size();
 
     // Diagonalize overlap matrix, S
 
@@ -95,8 +152,7 @@ int main() {
     
     // Finalize libint
 
-    // Finalize eigen
-
+    libint2::finalize();
 
     // prints some text
     cout << "This is some text." << endl;
