@@ -27,7 +27,7 @@ using libint2::Operator;
 std::string COORDS = "/Users/mcclement/practice/hartree_fock/h2o.xyz";
 std::string BASIS_SET = "sto-3g";
 
-// Define a Matrix object
+// Define a Matrix type 
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Matrix;
 
 // Create basis set object
@@ -41,31 +41,40 @@ BasisSet create_bs(std::string coords, std::string basis_set) {
     return basis;
 }
 
+// Determine total number of basis functions
 
-// Compute overlap integrals and store in Matrix
+int sum_func(BasisSet basis) {
+    int num_func=0;
+    for (int s=0; s!=basis.size(); ++s) {
+        Shell shell = basis[s];
+        int am = shell.contr[0].l;
+        int num = ((am + 1)*(am + 2))/2;
+        num_func += num;
+    }
+    return num_func;
+}
 
-Matrix s_compute(BasisSet basis) {
+// Compute 1-electron integrals and store in a Matrix
 
-    // S matrix dimensions
-    //const auto n = basis.size();
-    const auto n = 7;
-    //cout << "n = " << n << endl;
+Matrix one_elec_compute(BasisSet basis, int num_func, Operator op) {
+
+    // Matrix dimensions
+    int n = num_func;
  
-    // Define uninitialized S matrix of appropriate dimensions
-    Matrix s_mat(n,n);
+    // Define uninitialized  matrix of appropriate dimensions
+    Matrix integral_mat(n,n);
 
-    // Create overlap integral engine
-    Engine s_engine(Operator::overlap,
+    // Create one electron integral engine
+    Engine one_elec_engine(op,
                     basis.max_nprim(),
                     basis.max_l()
                     );
-
         
     // Map shell index to basis function index
     auto shell2bf = basis.shell2bf();
 
     // Point to each computed shell set
-    const auto& s_buf_vec = s_engine.results();
+    const auto& buf_vec = one_elec_engine.results();
 
     // Loop over unique pairs of functions
     for (auto s1=0; s1!=basis.size(); ++s1) {
@@ -78,52 +87,50 @@ Matrix s_compute(BasisSet basis) {
             auto bf2 = shell2bf[s2];
             auto n2 = basis[s2].size();
   
+            /*
             cout << "bf1: " << bf1 << ",  ";
             cout << "bf2: " << bf2 << ",  ";
             cout << "n1 x n2: " << n1 << " x " << n2 << endl;
-            
-            /*
-            cout << "The number of functions in shell s1 is " 
-            << shell2bf[s1].size() << "\n";
-            cout << "The number of functions in shell s2 is "
-            << shell2bf[s2].size() << endl;
             */
             
-            // Compute overlap integral
-            s_engine.compute(basis[s1], basis[s2]);
+            // Compute integral
+            one_elec_engine.compute(basis[s1], basis[s2]);
     
-            // Store overlap integral value in uninitialized Matrix
-            //auto s_shellset = s_buf_vec[0];
-            Eigen::Map<const Matrix> s_buf_mat(s_buf_vec[0], n1, n2); 
-            s_mat.block(bf1, bf2, n1, n2 ) = s_buf_mat;
+            // Store integral value in uninitialized Matrix
+            Eigen::Map<const Matrix> buf_mat(buf_vec[0], n1, n2); 
+            integral_mat.block(bf1, bf2, n1, n2 ) = buf_mat;
             
             if(s1!=s2)
-                s_mat.block(bf2, bf1, n2, n1) = s_buf_mat.transpose();
-
-
+                integral_mat.block(bf2, bf1, n2, n1) = buf_mat.transpose();
        }
     }
-    return s_mat;
+    return integral_mat;
 }
-
-
-
 
 
 int  main() {
 
     libint2::initialize();
 
+    // Create the basis set object
     BasisSet basis = create_bs(COORDS, BASIS_SET);
 
-            
     // Print out the basis set object 
-    copy(begin(basis), end(basis), std::ostream_iterator<Shell>(cout, "\n"));
+    //copy(begin(basis), end(basis), std::ostream_iterator<Shell>(cout, "\n"));
 
-    Matrix s_matrix = s_compute(basis);
-
-    cout << "The overlap (S) matrix: \n" << s_matrix << endl;
+    // Determine the total number of basis functions in the basis set
+    int num_func  = sum_func(basis);
     
+    //cout << "total number of bf = " << num_func << "\n" << endl;
+    
+    // Form the overlap (S) matrix
+    Matrix s_matrix = one_elec_compute(basis, num_func, Operator::overlap);
+    cout << "The overlap (S) matrix: \n\n" << s_matrix << "\n" << endl;
+ 
+    // Form the kinetic energy (T) matrix
+    Matrix t_matrix = one_elec_compute(basis, num_func, Operator::kinetic);
+    cout << "The kinetic energy (T) matrix: \n\n" << t_matrix << "\n" << endl;
+   
     libint2::finalize();
 
     return 0;
