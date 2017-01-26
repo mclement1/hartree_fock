@@ -24,7 +24,7 @@ using libint2::Engine;
 using libint2::Operator;
 
 // Location of geometry file and basis set file
-std::string COORDS = "/Users/mcclement/practice/hartree_fock/h2.xyz";
+std::string COORDS = "/Users/mcclement/practice/hartree_fock/h2o.xyz";
 std::string BASIS_SET = "sto-3g";
 
 // Define a Matrix object
@@ -46,14 +46,12 @@ BasisSet create_bs(std::string coords, std::string basis_set) {
 
 Matrix s_compute(BasisSet basis) {
 
-    //int entries = 0;
-
     // S matrix dimensions
-    const auto n = basis.size();
-
+    //const auto n = basis.size();
+    const auto n = 7;
     //cout << "n = " << n << endl;
  
-    // Define S matrix of appropriate dimensions
+    // Define uninitialized S matrix of appropriate dimensions
     Matrix s_mat(n,n);
 
     // Create overlap integral engine
@@ -75,30 +73,34 @@ Matrix s_compute(BasisSet basis) {
         auto bf1 = shell2bf[s1];
         auto n1 = basis[s1].size();
 
-        //cout << "bf1 = " << bf1 << endl;
-        //cout << "n1 = " << n1 << " bf1 = " << bf1 << endl;
-        //cout << "basis[s1] = " << basis[s1] << endl;       
-        
-        for(auto s2=0; s2!=basis.size(); ++s2) {
+        for(auto s2=0; s2<=s1; ++s2) {
             
             auto bf2 = shell2bf[s2];
             auto n2 = basis[s2].size();
   
-            //cout << "bf2 = " << bf2 << endl;
-            //cout << "n2 = " << n2 << " bf2 = " << bf2 << endl;
-            //cout << "basis[s2] = " << basis[s2] << endl;
+            cout << "bf1: " << bf1 << ",  ";
+            cout << "bf2: " << bf2 << ",  ";
+            cout << "n1 x n2: " << n1 << " x " << n2 << endl;
+            
+            /*
+            cout << "The number of functions in shell s1 is " 
+            << shell2bf[s1].size() << "\n";
+            cout << "The number of functions in shell s2 is "
+            << shell2bf[s2].size() << endl;
+            */
             
             // Compute overlap integral
             s_engine.compute(basis[s1], basis[s2]);
     
-            // Store overlap integral value in unitialized Matrix
+            // Store overlap integral value in uninitialized Matrix
             //auto s_shellset = s_buf_vec[0];
             Eigen::Map<const Matrix> s_buf_mat(s_buf_vec[0], n1, n2); 
-
-            //entries = entries + (n1*n2);            
-            //cout << "number of elements = " << entries << endl;
-            //cout << "s_buf_mat is\n" << s_buf_mat << endl;
             s_mat.block(bf1, bf2, n1, n2 ) = s_buf_mat;
+            
+            if(s1!=s2)
+                s_mat.block(bf2, bf1, n2, n1) = s_buf_mat.transpose();
+
+
        }
     }
     return s_mat;
