@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <iterator>
 
-
 // Eigen matrix algebra library
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
@@ -30,8 +29,25 @@ std::string BASIS_SET = "sto-3g";
 // Define a Matrix type 
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Matrix;
 
+// Define an atom type
+//typedef std::vector<Atom> atom;
+
+// Read in molecular coordinates
+std::vector<Atom> read_geom(std::string coords) {
+    std::string molecule = coords;
+    std::ifstream input_file(molecule);
+    std::vector<Atom> atoms = libint2::read_dotxyz(input_file);
+    return atoms;
+}
+
 // Create basis set object
-BasisSet create_bs(std::string coords, std::string basis_set) {
+BasisSet create_bs(std::string basis_set, std::vector<Atom> atoms) {
+    
+    BasisSet basis(basis_set, atoms);
+    return basis;
+}
+
+/*BasisSet create_bs(std::string coords, std::string basis_set) {
     std::string molecule = coords;
     std::ifstream input_file(molecule);
     std::vector<Atom> atoms = libint2::read_dotxyz(input_file);
@@ -40,6 +56,7 @@ BasisSet create_bs(std::string coords, std::string basis_set) {
 
     return basis;
 }
+*/
 
 // Determine total number of basis functions
 
@@ -54,9 +71,10 @@ int sum_func(BasisSet basis) {
     return num_func;
 }
 
-// Compute 1-electron integrals and store in a Matrix
+// Compute 1-electron integrals (nuclear attraction,
+// kinetic energy, and overlap) and store in a Matrix
 
-Matrix one_elec_compute(BasisSet basis, int num_func, Operator op) {
+Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<Atom> atoms) {
 
     // Matrix dimensions
     int n = num_func;
@@ -69,6 +87,10 @@ Matrix one_elec_compute(BasisSet basis, int num_func, Operator op) {
                     basis.max_nprim(),
                     basis.max_l()
                     );
+
+    if (op == Operator::nuclear) {
+        one_elec_engine.set_params(make_point_charges(atoms));
+    }
         
     // Map shell index to basis function index
     auto shell2bf = basis.shell2bf();
@@ -112,8 +134,12 @@ int  main() {
 
     libint2::initialize();
 
+    // Read in molecular geometry
+    std::vector<Atom> atoms = read_geom(COORDS);
+ 
     // Create the basis set object
-    BasisSet basis = create_bs(COORDS, BASIS_SET);
+    //BasisSet basis = create_bs(COORDS, BASIS_SET);
+    BasisSet basis = create_bs(BASIS_SET, atoms);
 
     // Print out the basis set object 
     //copy(begin(basis), end(basis), std::ostream_iterator<Shell>(cout, "\n"));
@@ -124,13 +150,20 @@ int  main() {
     //cout << "total number of bf = " << num_func << "\n" << endl;
     
     // Form the overlap (S) matrix
-    Matrix s_matrix = one_elec_compute(basis, num_func, Operator::overlap);
+    Matrix s_matrix = one_elec_compute(basis, num_func, Operator::overlap, atoms);
     cout << "The overlap (S) matrix: \n\n" << s_matrix << "\n" << endl;
  
     // Form the kinetic energy (T) matrix
-    Matrix t_matrix = one_elec_compute(basis, num_func, Operator::kinetic);
+    Matrix t_matrix = one_elec_compute(basis, num_func, Operator::kinetic, atoms);
     cout << "The kinetic energy (T) matrix: \n\n" << t_matrix << "\n" << endl;
-   
+
+    // Form the nuclear attraction (V) matrix
+    Matrix v_matrix = one_elec_compute(basis, num_func, Operator::nuclear, atoms);
+    cout << "The nuclear attraction (V) matrix: \n\n" << v_matrix << "\n" << endl;
+
+    // Form the core hamiltonian (H) matrix
+    Matrix h_matrix = t_matrix + v_matrix;
+    cout << "The core Hamiltonian (H) matrix: \n\n" << h_matrix << "\n" << endl;
     libint2::finalize();
 
     return 0;
