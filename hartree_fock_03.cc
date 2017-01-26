@@ -71,7 +71,9 @@ int sum_func(BasisSet basis) {
     return num_func;
 }
 
-// Compute 1-electron integrals (nuclear attraction,
+// Compute the nuclear attraction energy
+
+// Compute one-electron integrals (nuclear attraction,
 // kinetic energy, and overlap) and store in a Matrix
 
 Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<Atom> atoms) {
@@ -129,6 +131,64 @@ Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<A
     return integral_mat;
 }
 
+// Compute two-electron integrals (electron repulsion integrals)
+
+// !!! Determine return type !!!
+
+int eri_compute(BasisSet basis) {
+     
+    // Create two electron integral engine
+    Engine eri_engine(Operator::coulomb,
+                    basis.max_nprim(),
+                    basis.max_l()
+                    );                  
+
+    // Map shell index to basis function index
+    auto shell2bf = basis.shell2bf();
+
+    // Point to each computed shell set
+    const auto& buf_vec = eri_engine.results();
+
+    // Loop over unique pairs of functions
+    
+    // !!! Enter conditions for s2, s3, and s4 !!!
+    for (auto s1=0; s1!=basis.size(); ++s1) {
+        Shell shell1 = basis[s1];
+        int am1 = shell1.contr[0].l;
+
+        for (auto s2=0; s2<=s1 ; ++s2) {
+            Shell shell2 = basis[s2];
+            int am2 = shell2.contr[0].l;
+
+            while (am1 < am2) {
+                continue;
+            }
+
+            for (auto s3=0; s3<=s2 ; ++s3) {
+                Shell shell3 = basis[s3];
+                int am3 = shell3.contr[0].l;
+
+                for (auto s4=0; s4<=s3 ; ++s4) {      
+                    Shell shell4 = basis[s4];
+                    int am4 = shell4.contr[0].l;
+                    
+                    while (am3 < am4) {
+                        continue;
+                    }
+ 
+                    while ((am3 + am4) < (am1 + am2)) {
+                        continue;
+                    }
+
+                    // Compute electron repulsion integrals
+                    eri_engine.compute(basis[s1], basis[s2],
+                                        basis[s3], basis[s4]);                   
+                }
+            }
+        }
+    }
+    return 0;
+}
 
 int  main() {
 
@@ -138,7 +198,6 @@ int  main() {
     std::vector<Atom> atoms = read_geom(COORDS);
  
     // Create the basis set object
-    //BasisSet basis = create_bs(COORDS, BASIS_SET);
     BasisSet basis = create_bs(BASIS_SET, atoms);
 
     // Print out the basis set object 
@@ -148,6 +207,8 @@ int  main() {
     int num_func  = sum_func(basis);
     
     //cout << "total number of bf = " << num_func << "\n" << endl;
+
+    // Compute the nuclear attraction energy
     
     // Form the overlap (S) matrix
     Matrix s_matrix = one_elec_compute(basis, num_func, Operator::overlap, atoms);
