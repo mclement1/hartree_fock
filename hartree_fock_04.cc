@@ -130,39 +130,54 @@ Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<A
   return integral_mat;
 }
 
-////Compute the electron density matrix, P
-////for initial purposes, use Pij = 0 
-//
-//  Matrix compute_density(Vector coeff, int num_func) {
-//
-//  Determine dimensions of density matrix
-//  int n = num_func;
-//
-//  //Declare the denisty (P) matrix
-//  //and initialize with all zeros
-//  Matrix density(n, n) = Matrix::Zero;
-//
-//  return density;
-//
+//Compute the electron density matrix, P
+//for initial purposes, use Pij = 0 
+
+//Matrix compute_density(Vector coeff, int num_func) {
+Matrix make_p(int num_func) {
+    int n = num_func;
+    Matrix p(n,n);
+    
+    for (int i=0; i<n; ++i) {
+      for (int j=0; j<n; ++j) {
+        if (i!=j)
+          p(i, j) = 0;
+        else 
+          p(0, 0) = 1;
+          p(1, 1) = 1;
+          p(2, 2) = (2.0/3.0);
+          p(3, 3) = (2.0/3.0);
+          p(4, 4) = (2.0/3.0);
+          p(5, 5) = 0.5;
+          p(6, 6) = 0.5;
+      }
+    }
+  return p;
+}
+
+  //Determine dimensions of density matrix
+  //int n = num_func;
+
+  //Declare the denisty (P) matrix
+  //and initialize with all zeros
+  //Matrix density(n, n) = Matrix::Zero;
+
+  //return density;
+
 //}
 
  
 
-// Compute two-electron integrals (electron repulsion integrals)
-// and form G matrix 
+// Compute the Coulomb eris and form the Coulomb (J) matrix
 
-Matrix eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
+Matrix j_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
 
-  // Set dimensions of J and K matrices
+  // Set dimensions of J matrix
   int n = num_func;
 
   // Declare coulomb (J) matrix
   Matrix coulomb(n,n); 
   
-  // Declare exchange (K) matrix
-  Matrix exchange(n,n); 
-
-
   // Create two electron integral engine
   Engine eri_engine(Operator::coulomb,
             basis.max_nprim(),
@@ -175,90 +190,165 @@ Matrix eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
   // Point to each computed shell set
   const auto& buf_vec = eri_engine.results();
 
-  // Sum the functions in each shell
-  const auto nf = sum_func(basis);
-
-  // Declare a vector to hold the eri values
-  //std::vector<double> vals(nf*nf*nf*nf);
-
-
-// Begin a running sum to determine where in
-// the vector each new shell set should start 
-  //int index = 0;
-
-  // Loop over every combination of shells
+  // For center 1, loop over shells
   for (auto s1=0; s1<basis.size(); ++s1) { 
     auto bf1 = shell2bf[s1]; // index of first bf in shell s1
     auto n1 = basis[s1].size(); // # of func in shell s1
 
-    for (auto s2=0; s2<basis.size(); ++s2) {  
-      auto bf2 = shell2bf[s2]; // index of first bf in shell s2
-      auto n2 = basis[s2].size(); // # of func in shell s2
+    // Loop over every bf in shell
+    for (auto f1=0; f1<n1; ++f1) {
 
-      double J12 = 0.0;
-      double K12 = 0.0;
+      // For a given bf in a given shell on center 1,
+      // loop over shells on center 2
+      for (auto s2=0; s2<basis.size(); ++s2) {  
+        auto bf2 = shell2bf[s2]; // index of first bf in shell s2
+        auto n2 = basis[s2].size(); // # of func in shell s2
 
+        // Loop over every function in shell
+        for (auto f2=0; f2<n2; ++f2) {
 
-      for (auto s3=0; s3<basis.size(); ++s3) { 
-        auto bf3 = shell2bf[s3]; // index of first bf in shell s3
-        auto n3 = basis[s3].size(); // # of func in shell s3
-       
-        for (auto s4=0; s4<basis.size(); ++s4) { 
-            auto bf4 = shell2bf[s4]; // index of first bf in shell s4
-            auto n4 = basis[s4].size(); // # of func in shell s4
+          // Initialize sum for J corresponding to 
+          // the bf on center 1 and the bf on center 2
+          double J12 = 0.0;
 
-            // Compute eri for coulomb contribution {s1, s2, s3, s4}
-            eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);                  
-            //cout << bf1 << "," << bf2 << "," << bf3 << "," << bf4 << endl;
-            
-            // Location of computed (shell set) of coulomb integrals
-            const auto* buf_1234 = buf_vec[0];
+          // For a given bf on center 1 and a given bf on
+          // center 2, loop over shells on center 3
+          for (auto s3=0; s3<basis.size(); ++s3) { 
+            auto bf3 = shell2bf[s3]; // index of first bf in shell s3
+            auto n3 = basis[s3].size(); // # of func in shell s3
            
-            // Store eri in vector
-            for (auto f1=0; f1<n1; ++f1) {
-              auto d1 = n2*n3*n4; // # of basis funcs per func in s1
+            // For a given bf on center 1, a given bf on center 2
+            // and a given shell on center 3, loop of shells on 
+            // center 4
+            for (auto s4=0; s4<basis.size(); ++s4) { 
+                auto bf4 = shell2bf[s4]; // index of first bf in shell s4
+                auto n4 = basis[s4].size(); // # of func in shell s4
 
-              for (auto f2=0; f2<n2; ++f2) {
-                auto d2 = n3*n4; // # of basis funcs per func in s2
-
+                // Compute eri for coulomb contribution {s1, s2, s3, s4}
+                eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);                  
+                //cout << bf1 << "," << bf2 << "," << bf3 << "," << bf4 << endl;
+                
+                // Location of computed (shell set) of coulomb integrals
+                const auto* buf_1234 = buf_vec[0];
+               
+                // Sum together the eris corresponding to the particular
+                // bf on center 1 and the particular bf on center 2
+                auto d1 = n2*n3*n4; // # of bfs per func in s1
+                auto d2 = n3*n4; // # of bfs per func in s2
+                auto d3 = n4; // # of bfs per func in s3                   
+                
                 for (auto f3=0; f3<n3; ++f3) {
-                  auto d3 = n4; // # of basis funcs per func in s3
-                  
                   for (auto f4=0; f4<n4; ++f4) {
-                    J12 = J12 + buf_1234[f1*d1+f2*d2+f3*d3+f4];
-
-
-                  //cout << eri_shellset[f1*d1 + f2*d2 + f3*d3 + f4] << endl;
-                  //vals[index+f1*d1+f2*d2+f3*d3+f4] = eri_shellset[f1*d1+f2*d2+f3*d3+f4];
-                  //vals[()] = eri_shellset[f1*d1+f2*d2+f3*d3+f4]
-                  }                                  
+                    J12 = J12 + buf_1234[f1*d1+f2*d2+f3*d3+f4]*density_mat(bf3+f3, bf4+f4);
+                  }
                 }
               }
-            }  
-
-            // Compute eri for exchange contribution {s1, s4, s3, s2}
-            eri_engine.compute(basis[s1], basis[s4], basis[s3], basis[s2]);
-
-            // Location of computed shell set of exchange integrals
-            const auto* buf_1432 = buf_vec[0];
-                                                                    
-            //index = index + n1*n2*n3*n4;
-            //cout << "index = " << index << endl;
-          } 
-        }
+            }
+            coulomb(bf1+f1, bf2+f2) = J12;
+          }
+        } 
       }
-    }
-
-  
+    }           
+ 
 // cout << "\ns1, s2, s3, s4: " << s1 << ", " << s2 << ", " << s3 << ", " << s4 << endl;
 // cout << "bf1, bf2, bf3, bf4: " << bf1 << ", " << bf2 << ", " << bf3 << ", " << bf4 << endl; 
 // cout << "n1, n2, n3, n4: " << n1 << ", " << n2 << ", " << n3 << ", " << n4 << endl;
 // cout << "index: " << index << endl;
  
-return vals;
+return coulomb;
 
 }
 
+// Compute the exchange eris and form the exchange (K) matrix
+
+Matrix k_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
+
+  // Set dimensions of K matrix
+  int n = num_func;
+
+  // Declare exchange (K) matrix
+  Matrix exchange(n,n); 
+  
+  // Create two electron integral engine
+  Engine eri_engine(Operator::coulomb,
+            basis.max_nprim(),
+            basis.max_l()
+            );                  
+
+  // Map shell index to basis function index
+  auto shell2bf = basis.shell2bf();
+
+  // Point to each computed shell set
+  const auto& buf_vec = eri_engine.results();
+
+  // For center 1, loop over shells
+  for (auto s1=0; s1<basis.size(); ++s1) { 
+    auto bf1 = shell2bf[s1]; // index of first bf in shell s1
+    auto n1 = basis[s1].size(); // # of func in shell s1
+
+    // Loop over every bf in shell
+    for (auto f1=0; f1<n1; ++f1) {
+
+      // For a given bf in a given shell on center 1,
+      // loop over shells on center 2
+      for (auto s2=0; s2<basis.size(); ++s2) {  
+        auto bf2 = shell2bf[s2]; // index of first bf in shell s2
+        auto n2 = basis[s2].size(); // # of func in shell s2
+
+        // Loop over every function in shell
+        for (auto f2=0; f2<n2; ++f2) {
+
+          // Initialize sum for K corresponding to 
+          // the bf on center 1 and the bf on center 2
+          double K12 = 0.0;
+
+          // For a given bf on center 1 and a given bf on
+          // center 2, loop over shells on center 3
+          for (auto s3=0; s3<basis.size(); ++s3) { 
+            auto bf3 = shell2bf[s3]; // index of first bf in shell s3
+            auto n3 = basis[s3].size(); // # of func in shell s3
+           
+            // For a given bf on center 1, a given bf on center 2
+            // and a given shell on center 3, loop of shells on 
+            // center 4
+            for (auto s4=0; s4<basis.size(); ++s4) { 
+                auto bf4 = shell2bf[s4]; // index of first bf in shell s4
+                auto n4 = basis[s4].size(); // # of func in shell s4
+
+                // Compute eri for exchange contribution {s1, s4, s3, s2}
+                eri_engine.compute(basis[s1], basis[s4], basis[s3], basis[s2]);                  
+                //cout << bf1 << "," << bf2 << "," << bf3 << "," << bf4 << endl;
+                
+                // Location of computed (shell set) of exchange integrals
+                const auto* buf_1432 = buf_vec[0];
+               
+                // Sum together the eris corresponding to the particular
+                // bf on center 1 and the particular bf on center 2
+                auto d1 = n2*n3*n4; // # of bfs per func in s1
+                auto d2 = n3*n4; // # of bfs per func in s2
+                auto d3 = n4; // # of bfs per func in s3                   
+                
+                for (auto f3=0; f3<n3; ++f3) {
+                  for (auto f4=0; f4<n4; ++f4) {
+                    K12 = K12 + buf_1432[f1*d1+f2*d2+f3*d3+f4]*density_mat(bf3+f3, bf4+f4);
+                  }
+                }
+              }
+            }
+           exchange(bf1+f1, bf2+f2) = K12;
+          }
+        } 
+      }
+    }           
+ 
+// cout << "\ns1, s2, s3, s4: " << s1 << ", " << s2 << ", " << s3 << ", " << s4 << endl;
+// cout << "bf1, bf2, bf3, bf4: " << bf1 << ", " << bf2 << ", " << bf3 << ", " << bf4 << endl; 
+// cout << "n1, n2, n3, n4: " << n1 << ", " << n2 << ", " << n3 << ", " << n4 << endl;
+// cout << "index: " << index << endl;
+ 
+return exchange;
+
+}
 
 int  main() {
 
@@ -297,16 +387,21 @@ int  main() {
   cout << "The core Hamiltonian (H) matrix: \n\n" << H << "\n" << endl;
 
   // Form the electron density (P) matrix
-  Matrix P = Matrix::Zero(num_func, num_func);
+  //Matrix P = Matrix::Zero(num_func, num_func);
+  Matrix P = make_p(num_func);
   cout << "The initial density (P) matrix: \n\n" << P << "\n" << endl;
 
   // Form the coulomb (J) matrix
+  Matrix J = j_eri_compute(basis, P, num_func);
+  cout << "The initial coulomb (J) matrix: \n\n" << J << "\n" << endl;
 
   // Form the exchange (K) matrix 
+  Matrix K = k_eri_compute(basis, P, num_func);
+  cout << "The initial exchange (K) matrix: \n\n" << K << "\n" << endl;
 
   // Form the Fock (F) matrix
-  // Matrix F = H + 2*J - K;
-
+  Matrix F = H + 2*J - K;
+  cout << "The initial Fock (F) matrix: \n\n" << F << "\n" << endl;
 
   //std::vector<double> vals = eri_compute(basis);
   //cout << vals[0] << endl;
