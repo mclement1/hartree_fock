@@ -47,16 +47,6 @@ BasisSet create_bs(std::string basis_set, std::vector<Atom> atoms) {
   return basis;
 }
 
-//BasisSet create_bs(std::string coords, std::string basis_set) {
-//    std::string molecule = coords;
-//    std::ifstream input_file(molecule);
-//    std::vector<Atom> atoms = libint2::read_dotxyz(input_file);
-//
-//    BasisSet basis(basis_set, atoms);
-//
-//    return basis;
-//}
-//
 
 // Determine total number of basis functions
 
@@ -71,6 +61,27 @@ int sum_func(BasisSet basis) {
   return num_func;
 }
 
+//Form the initial electron density matrix, P
+
+Matrix make_p(int num_func) {
+    int n = num_func;
+    Matrix p(n,n);
+    
+    for (int i=0; i<n; ++i) {
+      for (int j=0; j<n; ++j) {
+        if (i!=j)
+          p(i, j) = 0;
+        else 
+          if (i == 0 || i == 1) 
+            p(i, i) = 1;
+          else if (i == n-1 || i == n-2)
+            p(i, i) = 0.5;
+          else
+            p(i, i) = (2.0/3.0);
+      }
+    }
+  return p;
+}
 // Compute the nuclear attraction energy
 
 //Compute one-electron integrals (nuclear attraction,
@@ -110,12 +121,7 @@ Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<A
     
       auto bf2 = shell2bf[s2]; // index of first basis func in shell s2
       auto n2 = basis[s2].size(); // number of basis func in shell s2
-
    
-   // cout << "bf1: " << bf1 << ",  ";
-   // cout << "bf2: " << bf2 << ",  ";
-   // cout << "n1 x n2: " << n1 << " x " << n2 << endl;
-    
       // Compute integral
       one_elec_engine.compute(basis[s1], basis[s2]);
 
@@ -130,43 +136,6 @@ Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<A
   return integral_mat;
 }
 
-//Compute the electron density matrix, P
-//for initial purposes, use Pij = 0 
-
-//Matrix compute_density(Vector coeff, int num_func) {
-Matrix make_p(int num_func) {
-    int n = num_func;
-    Matrix p(n,n);
-    
-    for (int i=0; i<n; ++i) {
-      for (int j=0; j<n; ++j) {
-        if (i!=j)
-          p(i, j) = 0;
-        else 
-          p(0, 0) = 1;
-          p(1, 1) = 1;
-          p(2, 2) = (2.0/3.0);
-          p(3, 3) = (2.0/3.0);
-          p(4, 4) = (2.0/3.0);
-          p(5, 5) = 0.5;
-          p(6, 6) = 0.5;
-      }
-    }
-  return p;
-}
-
-  //Determine dimensions of density matrix
-  //int n = num_func;
-
-  //Declare the denisty (P) matrix
-  //and initialize with all zeros
-  //Matrix density(n, n) = Matrix::Zero;
-
-  //return density;
-
-//}
-
- 
 
 // Compute the Coulomb eris and form the Coulomb (J) matrix
 
@@ -249,15 +218,9 @@ Matrix j_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
         } 
       }
     }           
- 
-// cout << "\ns1, s2, s3, s4: " << s1 << ", " << s2 << ", " << s3 << ", " << s4 << endl;
-// cout << "bf1, bf2, bf3, bf4: " << bf1 << ", " << bf2 << ", " << bf3 << ", " << bf4 << endl; 
-// cout << "n1, n2, n3, n4: " << n1 << ", " << n2 << ", " << n3 << ", " << n4 << endl;
-// cout << "index: " << index << endl;
- 
 return coulomb;
-
 }
+
 
 // Compute the exchange eris and form the exchange (K) matrix
 
@@ -317,20 +280,19 @@ Matrix k_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
 
                 // Compute eri for exchange contribution {s1, s4, s3, s2}
                 eri_engine.compute(basis[s1], basis[s4], basis[s3], basis[s2]);                  
-                //cout << bf1 << "," << bf2 << "," << bf3 << "," << bf4 << endl;
                 
                 // Location of computed (shell set) of exchange integrals
                 const auto* buf_1432 = buf_vec[0];
-               
+        
                 // Sum together the eris corresponding to the particular
                 // bf on center 1 and the particular bf on center 2
-                auto d1 = n2*n3*n4; // # of bfs per func in s1
-                auto d2 = n3*n4; // # of bfs per func in s2
-                auto d3 = n4; // # of bfs per func in s3                   
+                auto d1 = n4*n3*n2;
+                auto d2 = n3*n2;
+                auto d3 = n2;
                 
                 for (auto f3=0; f3<n3; ++f3) {
                   for (auto f4=0; f4<n4; ++f4) {
-                    K12 = K12 + buf_1432[f1*d1+f2*d2+f3*d3+f4]*density_mat(bf3+f3, bf4+f4);
+                    K12 = K12 + buf_1432[f1*d1+f4*d2+f3*d3+f2]*density_mat(bf3+f3, bf4+f4);
                   }
                 }
               }
@@ -340,14 +302,7 @@ Matrix k_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
         } 
       }
     }           
- 
-// cout << "\ns1, s2, s3, s4: " << s1 << ", " << s2 << ", " << s3 << ", " << s4 << endl;
-// cout << "bf1, bf2, bf3, bf4: " << bf1 << ", " << bf2 << ", " << bf3 << ", " << bf4 << endl; 
-// cout << "n1, n2, n3, n4: " << n1 << ", " << n2 << ", " << n3 << ", " << n4 << endl;
-// cout << "index: " << index << endl;
- 
 return exchange;
-
 }
 
 int  main() {
@@ -365,8 +320,6 @@ int  main() {
 
   // Determine the total number of basis functions in the basis set
   int num_func  = sum_func(basis);
-
-  //cout << "total number of bf = " << num_func << "\n" << endl;
 
   // Compute the nuclear attraction energy
 
@@ -386,7 +339,7 @@ int  main() {
   Matrix H = T + V;
   cout << "The core Hamiltonian (H) matrix: \n\n" << H << "\n" << endl;
 
-  // Form the electron density (P) matrix
+  // Form the initial electron density (P) matrix
   //Matrix P = Matrix::Zero(num_func, num_func);
   Matrix P = make_p(num_func);
   cout << "The initial density (P) matrix: \n\n" << P << "\n" << endl;
@@ -399,20 +352,13 @@ int  main() {
   Matrix K = k_eri_compute(basis, P, num_func);
   cout << "The initial exchange (K) matrix: \n\n" << K << "\n" << endl;
 
+  // Form the G matrix
+  Matrix G = 2*J - K;
+  cout << "The initial G matrix: \n\n" << G << "\n" << endl;
+
   // Form the Fock (F) matrix
   Matrix F = H + 2*J - K;
   cout << "The initial Fock (F) matrix: \n\n" << F << "\n" << endl;
-
-  //std::vector<double> vals = eri_compute(basis);
-  //cout << vals[0] << endl;
-  //  
-  //auto shells = basis.size();
-  //cout << "total # of shells: " << shells << endl;
-  //auto nf = sum_func(basis);
-  //cout << "total # of bf: " << nf << endl;
-  //auto size = vals.size();
-  //cout << "total # of eris: " << size << endl;
-  //cout << "nf*nf*nf*nf << endl;
 
   libint2::finalize();
 
