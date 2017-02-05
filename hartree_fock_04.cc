@@ -4,10 +4,14 @@
 #include <vector>
 #include <algorithm>
 #include <iterator>
+#include <math.h>
+
+
 
 // Eigen matrix algebra library
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
+#include <unsupported/Eigen/MatrixFunctions>
 
 // Libint gaussian integrals library
 #include <libint2.hpp>
@@ -28,6 +32,10 @@ std::string BASIS_SET = "sto-3g";
 
 // Define a Matrix type 
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Matrix;
+
+// Define a constant matrix type
+//typedef Eigen::Matrix <const double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajory> constMatrix;
+
 
 // Define an atom type
 //typedef std::vector<Atom> atom;
@@ -65,7 +73,7 @@ int sum_func(BasisSet basis) {
 
 Matrix make_p(int num_func) {
     int n = num_func;
-    Matrix p(n,n);
+   Matrix p(n,n);
     
     for (int i=0; i<n; ++i) {
       for (int j=0; j<n; ++j) {
@@ -135,6 +143,40 @@ Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<A
   }
   return integral_mat;
 }
+
+
+// Diagonalize the overlap matrix S to form 
+// the transformation matrix X
+
+Matrix diagonalize_s(Matrix S, int num_func) {
+  Eigen::SelfAdjointEigenSolver<Matrix> es;
+  es.compute(S);
+  //Matrix D(7, 7);
+  //cout << es.eigenvalues() << endl;
+  //cout << es.eigenvectors() << endl; 
+  Matrix s = es.eigenvalues().asDiagonal();
+  Matrix U = es.eigenvectors();
+  Matrix X(num_func, num_func);
+  for (int i=0; i<num_func; ++i) {
+    for (int j=0; j<num_func; ++j) {
+      X(i, j) = U(i, j)/sqrt(s(i,i));
+    }
+  }
+  return X;
+}
+
+  //constMatrix D(7,7);
+  //es.compute(S, true);
+  //Matrix U = es.eigenvectors();
+  //Matrix Uadj = U.adjoint();
+  //Matrix D = es.eigenvalues().asDiagonal();
+  //Matrix s = Uadj*S*U;
+  //Eigen::MatrixPower<Matrix> spow(s);
+  //Matrix X = U*spow(-1/2); 
+//return D;
+//}
+
+
 
 
 // Compute the Coulomb eris and form the Coulomb (J) matrix
@@ -305,6 +347,9 @@ Matrix k_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
 return exchange;
 }
 
+
+
+
 int  main() {
 
   libint2::initialize();
@@ -327,6 +372,10 @@ int  main() {
   Matrix S = one_elec_compute(basis, num_func, Operator::overlap, atoms);
   cout << "The overlap (S) matrix: \n\n" << S << "\n" << endl;
 
+  // Diagonalize the S matrix to form the transformation matrix X
+  Matrix X = diagonalize_s(S, num_func);
+  cout << "The transformation (X) matrix: \n\n" << X << "\n" << endl;
+
   // Form the kinetic energy (T) matrix
   Matrix T = one_elec_compute(basis, num_func, Operator::kinetic, atoms);
   cout << "The kinetic energy (T) matrix: \n\n" << T << "\n" << endl;
@@ -339,10 +388,16 @@ int  main() {
   Matrix H = T + V;
   cout << "The core Hamiltonian (H) matrix: \n\n" << H << "\n" << endl;
 
+  // Main iterative loop
+
+  // Initialize the Frobenius value
+  double frob = 1.0;
+  
   // Form the initial electron density (P) matrix
-  //Matrix P = Matrix::Zero(num_func, num_func);
   Matrix P = make_p(num_func);
   cout << "The initial density (P) matrix: \n\n" << P << "\n" << endl;
+
+  while (std::abs(frob) > 0.000001) {
 
   // Form the coulomb (J) matrix
   Matrix J = j_eri_compute(basis, P, num_func);
@@ -357,8 +412,41 @@ int  main() {
   cout << "The initial G matrix: \n\n" << G << "\n" << endl;
 
   // Form the Fock (F) matrix
-  Matrix F = H + 2*J - K;
+  Matrix F = H + G;
   cout << "The initial Fock (F) matrix: \n\n" << F << "\n" << endl;
+
+  // Calculate the transformed Fock (F') matrix
+  Matrix Fprime = X.adjoint()*F*X;
+  cout << "The transformed Fock (F') matrix: \n\n" << Fprime << "\n" << endl;
+
+  // Diagonalize F' to obtain C' and epsilon
+  Eigen::SelfAdjointEigenSolver<Matrix> es;
+  es.compute(Fprime);
+  Matrix Cprime = es.eigenvectors();
+  
+  // Calculated C from C'
+  Matrix C = X*Cprime;  
+
+  // Form new density matrix
+  Matrix newP(num_func, num_func);
+  for (int i=0; i<num_func; ++i) {
+    for (int j=0; j<num_func; ++j ) {
+      double ij = 0.0;
+      for (int k=0; k<num_func; ++k) {
+        ij = ij + C(i, k)*C(j, k);
+      }
+      newP(i, j) = ij;
+    }
+  }
+  Matrix dif_mat = newP - P;
+  frob = dif_mat.norm();
+  cout << "Frobenius norm: " << frob << "\n" << endl;
+  P = newP;
+  }  
+  cout << "The new density (P) matrix : \n\n" << P << "\n" << endl;
+
+
+
 
   libint2::finalize();
 
