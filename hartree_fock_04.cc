@@ -33,20 +33,30 @@ std::string BASIS_SET = "sto-3g";
 // Define a Matrix type 
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Matrix;
 
-// Define a constant matrix type
-//typedef Eigen::Matrix <const double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajory> constMatrix;
-
-
-// Define an atom type
-//typedef std::vector<Atom> atom;
 
 // Read in molecular coordinates
 std::vector<Atom> read_geom(std::string coords) {
   std::string molecule = coords;
   std::ifstream input_file(molecule);
   std::vector<Atom> atoms = libint2::read_dotxyz(input_file);
+
   return atoms;
 }
+
+// Determine total number of electrons and occupied orbitals
+int count_elec(std::vector<Atom> atoms) {
+  int nelec = 0;
+  for (int i=0; i<atoms.size(); ++i) {
+    nelec += atoms[i].atomic_number;
+  } 
+  int num_occ;
+  if (nelec % 2 == 0)
+    num_occ = nelec/2;
+  else
+    num_occ = (nelec + 1)/2;
+  return num_occ;
+}
+
 
 // Create basis set object
 BasisSet create_bs(std::string basis_set, std::vector<Atom> atoms) {
@@ -57,7 +67,6 @@ BasisSet create_bs(std::string basis_set, std::vector<Atom> atoms) {
 
 
 // Determine total number of basis functions
-
 int sum_func(BasisSet basis) {
   int num_func=0;
   for (int s=0; s!=basis.size(); ++s) {
@@ -68,6 +77,7 @@ int sum_func(BasisSet basis) {
   }
   return num_func;
 }
+
 
 //Form the initial electron density matrix, P
 
@@ -90,7 +100,24 @@ Matrix make_p(int num_func) {
     }
   return p;
 }
-// Compute the nuclear attraction energy
+
+// Compute the nuclear repulsion energy
+double nuc_rep (std::vector<Atom> atoms) {
+
+  double nuc_rep = 0.0;
+  for (int j=1; j<atoms.size(); ++j) {
+    for (int i=0; i<j; ++i) {
+      double xij = atoms[i].x - atoms[j].x;
+      double yij = atoms[i].y - atoms[j].y;
+      double zij = atoms[i].z - atoms[j].z;
+      double rij = xij*xij + yij*yij + zij*zij;     
+      double r = std::sqrt(rij);
+      nuc_rep += (atoms[i].atomic_number*atoms[j].atomic_number)/r;
+    }
+  }
+  return nuc_rep;
+}
+
 
 //Compute one-electron integrals (nuclear attraction,
 // kinetic energy, and overlap) and store in a Matrix 
@@ -151,32 +178,22 @@ Matrix one_elec_compute(BasisSet basis, int num_func, Operator op, std::vector<A
 Matrix diagonalize_s(Matrix S, int num_func) {
   Eigen::SelfAdjointEigenSolver<Matrix> es;
   es.compute(S);
-  //Matrix D(7, 7);
-  //cout << es.eigenvalues() << endl;
-  //cout << es.eigenvectors() << endl; 
   Matrix s = es.eigenvalues().asDiagonal();
-  Matrix U = es.eigenvectors();
-  Matrix X(num_func, num_func);
+  cout << "Matrix s: \n\n" << s << "\n" << endl;
+  Matrix spow(num_func, num_func);
   for (int i=0; i<num_func; ++i) {
-    for (int j=0; j<num_func; ++j) {
-      X(i, j) = U(i, j)/sqrt(s(i,i));
+    for (int j=0; j<num_func; ++j ){
+      if (i == j)
+        spow(i, j) = 1/sqrt(s(i, j));
+      else
+        spow(i, j) = s(i, j);
     }
-  }
+  }      
+
+  Matrix U = es.eigenvectors();
+  Matrix X = U*spow*U.adjoint();
   return X;
 }
-
-  //constMatrix D(7,7);
-  //es.compute(S, true);
-  //Matrix U = es.eigenvectors();
-  //Matrix Uadj = U.adjoint();
-  //Matrix D = es.eigenvalues().asDiagonal();
-  //Matrix s = Uadj*S*U;
-  //Eigen::MatrixPower<Matrix> spow(s);
-  //Matrix X = U*spow(-1/2); 
-//return D;
-//}
-
-
 
 
 // Compute the Coulomb eris and form the Coulomb (J) matrix
@@ -350,7 +367,7 @@ return exchange;
 
 
 
-int  main() {
+int main() {
 
   libint2::initialize();
 
@@ -366,7 +383,12 @@ int  main() {
   // Determine the total number of basis functions in the basis set
   int num_func  = sum_func(basis);
 
+  // Determine the total number of occupied orbitals
+  int num_occ = count_elec(atoms); 
+  cout << "The number of occupied orbitals is " << num_occ << endl;
+
   // Compute the nuclear attraction energy
+  double nuc_energy = nuc_rep(atoms);
 
   // Form the overlap (S) matrix
   Matrix S = one_elec_compute(basis, num_func, Operator::overlap, atoms);
@@ -375,7 +397,7 @@ int  main() {
   // Diagonalize the S matrix to form the transformation matrix X
   Matrix X = diagonalize_s(S, num_func);
   cout << "The transformation (X) matrix: \n\n" << X << "\n" << endl;
-
+  
   // Form the kinetic energy (T) matrix
   Matrix T = one_elec_compute(basis, num_func, Operator::kinetic, atoms);
   cout << "The kinetic energy (T) matrix: \n\n" << T << "\n" << endl;
@@ -388,68 +410,85 @@ int  main() {
   Matrix H = T + V;
   cout << "The core Hamiltonian (H) matrix: \n\n" << H << "\n" << endl;
 
-  // Main iterative loop
-
-  // Initialize the Frobenius value
-  double frob = 1.0;
-  
   // Form the initial electron density (P) matrix
   Matrix P = make_p(num_func);
+  //Matrix P = Matrix::Zero(num_func, num_func); 
   cout << "The initial density (P) matrix: \n\n" << P << "\n" << endl;
 
-  while (std::abs(frob) > 0.000001) {
-
-  // Form the coulomb (J) matrix
+  // Form the initial coulomb (J) matrix
   Matrix J = j_eri_compute(basis, P, num_func);
-  cout << "The initial coulomb (J) matrix: \n\n" << J << "\n" << endl;
+  //cout << "The initial coulomb (J) matrix: \n\n" << J << "\n" << endl;
 
-  // Form the exchange (K) matrix 
+  // Form the initial exchange (K) matrix 
   Matrix K = k_eri_compute(basis, P, num_func);
-  cout << "The initial exchange (K) matrix: \n\n" << K << "\n" << endl;
+  //cout << "The initial exchange (K) matrix: \n\n" << K << "\n" << endl;
 
-  // Form the G matrix
+  // Form the inital G matrix
   Matrix G = 2*J - K;
-  cout << "The initial G matrix: \n\n" << G << "\n" << endl;
+  //cout << "The initial G matrix: \n\n" << G << "\n" << endl;
 
-  // Form the Fock (F) matrix
+  // Form the initial Fock (F) matrix
   Matrix F = H + G;
   cout << "The initial Fock (F) matrix: \n\n" << F << "\n" << endl;
 
-  // Calculate the transformed Fock (F') matrix
-  Matrix Fprime = X.adjoint()*F*X;
-  cout << "The transformed Fock (F') matrix: \n\n" << Fprime << "\n" << endl;
+  // Main iterative loop
 
-  // Diagonalize F' to obtain C' and epsilon
-  Eigen::SelfAdjointEigenSolver<Matrix> es;
-  es.compute(Fprime);
-  Matrix Cprime = es.eigenvectors();
-  
-  // Calculated C from C'
-  Matrix C = X*Cprime;  
+  // Initialize the frobenius value
+  double frob = 1.0;
 
-  // Form new density matrix
-  Matrix newP(num_func, num_func);
-  for (int i=0; i<num_func; ++i) {
-    for (int j=0; j<num_func; ++j ) {
-      double ij = 0.0;
-      for (int k=0; k<num_func; ++k) {
-        ij = ij + C(i, k)*C(j, k);
+  // Initialize a count of the iterations
+  int iter = 0;  
+
+  while (frob > 0.00000001) {
+
+    // Calculate the transformed Fock (F') matrix
+    Matrix Fprime = X*F*X;
+    
+    // Diagonalize F' to obtain C' and epsilon
+    Eigen::SelfAdjointEigenSolver<Matrix> es;
+    es.compute(Fprime);
+    Matrix Cprime = es.eigenvectors();  
+
+    // Calculated C from C'
+    Matrix C = X*Cprime;
+    //cout << "The C matrix: \n\n" << C << "\n" << endl;
+
+
+    Matrix newP(num_func, num_func);
+    for (int i=0; i<num_func; ++i) {
+      for (int j=0; j<num_func; ++j ) {
+        double ij = 0.0;
+        for (int k=0; k<num_occ; ++k) {
+          ij += C(i, k)*C(j, k);
+        }
+        newP(i, j) = ij;
       }
-      newP(i, j) = ij;
+    }
+
+
+
+    Matrix dif_mat = newP - P;
+    frob = dif_mat.norm();
+    P = newP;
+    J = j_eri_compute(basis, P, num_func);
+    K = k_eri_compute(basis, P, num_func);
+    F = H + 2*J - K;
+    iter += 1;
+  }  
+  cout << "The number of iterations is " << iter << endl;
+  double elec_energy = 0.0;
+  for (int i=0; i<num_func; ++i) {
+    for (int j=0; j<num_func; ++j) {
+      elec_energy = elec_energy + (H(i, j) + F(i, j))*P(i, j);
     }
   }
-  Matrix dif_mat = newP - P;
-  frob = dif_mat.norm();
-  cout << "Frobenius norm: " << frob << "\n" << endl;
-  P = newP;
-  }  
-  cout << "The new density (P) matrix : \n\n" << P << "\n" << endl;
+  //elec_energy = elec_energy/2;
 
-
-
-
+  double EHF = elec_energy + nuc_energy;
+  cout << "The Hartree Fock energy is " << EHF << endl;
+  cout << "The electronic energy is " << elec_energy << endl;
+  cout << "The nuclear repulsion energy is " << nuc_energy << endl;
   libint2::finalize();
-
 
   return 0;
 }
