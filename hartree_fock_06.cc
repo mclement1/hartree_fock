@@ -370,6 +370,61 @@ return exchange;
 }
 
 
+// Compute the occupied molecular orbitals from the basis
+// functions and the expansion coefficients
+std::vector<double> occ(Matrix C, int num_func, int num_occ) {
+  std::vector<double> occ_orb(num_occ);
+  for (int j=0; j<num_occ; ++j) {
+    double orbital = 0.0;
+    for (int i=0; i<num_func; ++i) {
+      double coeff = C[i*num_func +  j];
+      double bf = basis[i];
+      orbital = orbital + coef*bf;
+    }
+  occ_orb[j] = orbital;
+  } 
+return occ_orb;
+}
+
+
+// Compute the virtual molecular orbitals from the basis
+// functions and the expansion coefficients
+std::vector<double> virt(Matrix C, int num_func, int num_occ, int num_virt) {
+  std::vector<double> virt_orb(num_virt);
+  for (int j=num_occ; j<num_func; ++j) {
+    double orbitals = 0.0;
+    for (int i=0; i<num_func; ++i) {
+      double coeff = C[i*num_func + j];
+      double bf = basis[i];
+      orbital = orbital + coef*bf;
+    }
+  virt_orb[j] = orbital;
+  }
+return virt_orb;
+}
+
+
+// Compute the second order correction to the energy
+double second_order(Matrix C, int num_func) {
+  
+  // Create two electron integral engine
+  Engine eri_engine(Operator::coulomb,
+            basis.max_nprim(),
+            basis.max_l()
+            );                  
+  
+  for (int i=0; i<num_func; ++i) {
+    for (int j=i+1; j<num_func; ++j) {
+      for int(a=0; a<num_func; ++a) {
+        for (int b=a+1; b<num_func; ++b) {
+          double j = eri_engine.compute(occ_orb[i], occ_orb[j], virt_orb[a], virt_orb[b]);
+          double k = eri_engine.compute(occ_orb[i], virt_orb[a], occ_orb[j], virt_orb[b]);
+        }
+      }
+    }
+  } 
+
+}
 
 
 int main() {
