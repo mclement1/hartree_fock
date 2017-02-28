@@ -388,8 +388,64 @@ vector<double> make_eps_vec(Matrix C, Matrix F, int num_func) {
 }
 
 // Compute integrals for MP2 numerator
+//double mp2_int() {
+//  for (int mu=0; mu<num_func; ++mu) {
+//    for (int nu=0; nu<num_func; ++nu) {
+//      for (int rho=0; rho <num_func; ++rho) {
+//        for (int sigma=0; sigma<num_func; ++sigma) {
+//          
+//
+//
+//
+//}
 
 
+// Compute numerator of MP2 correction
+double comp_num() {
+  for (int i=0; i<num_occ; ++i) { // occupied -> column index
+    for (int s1=0; s1<basis.size(); ++s1) {
+      int bf1 = shell2bf[s1];
+      int n1 = basis[s1].size();
+
+      for (int j=i; j<num_occ; ++j) { // occupied -> column index
+        for (int s2=0; s2<basis.size(); ++s2) {
+          int bf2 = shell2bf[s2];
+          int n2 = basis[s2].size();
+
+          for (a=num_occ; a<num_func; ++a) { // virtual -> column index
+            for (int s3=0; s3<basis.size(); ++s3) {
+              int bf3 = shell2bf[s3];
+              int n3 = basis[s3].size();
+ 
+              for (b=a; b<num_func; ++b) { // virtual -> column index
+                for (int s4=0; s4<basis.size(); ++s4) {      
+                  int bf4 = shell2bf[s4];
+                  int n4 = basis[s4].size();
+
+          for (int mu=0; mu<num_func; ++mu) { // basis funcs within MO i -> row index
+            for (int nu=0; nu<num_func; ++nu) { // basis funcs within MO j -> row index
+              for (int rho=0; rho<num_func; ++rho) { // basis funcs within MO a -> row index
+                for (int sigma=0; sigma<num_func; ++sigma) { // basis funcs within MO b -> row index
+                                    
+
+
+}
+
+// Compute denominator of MP2 correction
+double comp_denom(vector<double> eps_vec, int num_occ, int num_func) {
+  double denom;
+  for (int i=0; i<num_occ; ++i) {
+    for (int j=i; j<num_occ; ++j) {
+      for (int a = num_occ; a<num_func; ++a) {
+        for (int b=a; b<num_func; ++b) {
+          double sum = eps_vec[i] + eps_vec[j] - eps_vec[a] - eps_vec[b];
+          denom += sum;
+        }
+      }
+    }
+  }
+  return denom;
+}
 
 
 
@@ -742,9 +798,11 @@ int main() {
     ham_sum += ham_vec[i];
   }
 
+  double mp2_denom = comp_denom(eps_vec, num_occ, num_func);
+
   cout << "The sum of the orbital energies is " << orb_sum << endl;
   cout << "The hartree fock energy is " << (2.0*orb_sum) + (ham_sum/2.0) << endl;
-
+  cout << "The MP2 denominator term is " << mp2_denom << endl;
   libint2::finalize();
 
   return 0;
