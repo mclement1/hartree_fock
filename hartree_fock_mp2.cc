@@ -19,6 +19,8 @@
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::vector;
+
 
 using libint2::BasisSet;
 using libint2::Atom;
@@ -364,80 +366,151 @@ Matrix k_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
 return exchange;
 }
 
-
-// Compute the second order correction to the energy
-double second_order(int occ, int virt, BasisSet basis) {
-
-  // Create two electron integral engine
-  Engine eri_engine(Operator::coulomb,
-            basis.max_nprim(),
-            basis.max_l()
-            );                  
-  
-  // Map shell index to basis function index
-  auto shell2bf = basis.shell2bf();
-
-  // Point to each computed shell set
-  const auto& buf_vec = eri_engine.results();
-  
-  double sum = 0.0;
-
-  for (int i=0; i<occ; ++i) {
-    for (auto s1=0; s1<basis.size(); ++s1) {
-      auto bf1 = shell2bf[s1];
-      auto n1 = basis[s1].size();
-      //for (auto f1=0; f1<n1; ++f1) {
-
-        for (int j=i+1; j<occ; ++j) {
-        for (auto s2=0; s2<basis.size(); ++s2) {
-          auto bf2 = shell2bf[s2];
-          auto n2 = basis[s2].size();
-          //for (auto f2=0; f2<n2; ++f2) {
-        
-          for (int a=occ; a<virt; ++a) {
-            for (auto s3=0; s3<basis.size(); ++s3) {
-            auto bf3 = shell2bf[s3];
-            auto n3 = basis[s3].size();
-          //for (auto f3=0; f3<n3; ++f3) {
-      
-            for (int b=a+1; b<virt; ++b) {
-              for (auto s4=0; s4<basis.size(); ++s4) {
-                auto bf4 = shell2bf[s4];
-                auto n4 = basis[s4].size();
-                //for (auto f4=0; f4<n4; ++f4) {              
-                eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);
-                const auto& buf_1234 = buf_vec[0];
-                auto d1 = n2*n3*n4;
-                auto d2 = n3*n4;
-                auto d3 = n4;
-
-                double ground = 0.0;
-                
-                for (auto f1=0; f1<n1; ++f1) {
-                  for (auto f2=0; f2<n2; ++f2) {
-                    for (auto f3=0; f3<n3; ++f3) {
-                      for (auto f4=0; f4<n4; ++f4) {
-                        ground = ground + buf_1234[f1*d1+f2*d2+f3*d3+f4]
-                                          *C(bf1+f1,i)*C(bf2+f2,j)*C(bf3+f3,a)*C(bf4+f4,b);
-                        
-
-
-                eri_engine.compute(basis[s1], basis[s3], basis[s2], basis[s4]);
-                const auto& buf_1324 = buf_vec[0];
-                auto d1 = n3*n2*n4;
-                auto d2 = n2*n4;
-                auto d3 = n4;
-
-                double excited = 0.0;
-                
-                for (auto f1=0; f1<n1; ++f1) {
-                  for (auto f3=0; f3<n3; ++f3) {
-                    for (auto f2=0; f2<n2; ++f2) {
-                      for (auto f4=0; f4<n4; ++f4) {
-                        ground = ground + buf_1324[f1*d1+f3*d2+f2*d3+f4]
-                                          *C(bf1+f1,i)*C(bf3+f3,a)*C(bf3+f3,j)*C(bf4+f4,b);
-
+// Compute the orbital energies
+double compute_epsilon(Matrix C, Matrix F, int i, int n) {
+  double epsilon = 0.0;
+  for (int mu=0; mu<n; ++mu) {
+    for (int nu=mu; nu<n; ++nu) {
+      epsilon += C(mu, i)*C(nu, i)*F(mu, nu);     
+    }
+  }
+  return epsilon;
 }
+
+// Compile all orbital energies in a vector
+vector<double> make_eps_vec(Matrix C, Matrix F, int num_func) {
+  vector<double> eps_vec(num_func);
+  for (int i=0; i<num_func; ++i) {
+    double eps = compute_epsilon(C, F, i, num_func); 
+    eps_vec[i] = eps;
+  }
+  return eps_vec;
+}
+
+// Compute integrals for MP2 numerator
+
+
+
+
+
+// Compute the h_aa elements
+double compute_hamiltonian(Matrix C, Matrix H, int i, int n) {
+  double hamiltonian = 0.0;
+  for (int mu=0; mu<n; ++mu) {
+    for (int nu=mu; nu<n; ++nu) {
+      hamiltonian += C(mu, i)*C(nu, i)*H(mu, nu);     
+    }
+  }
+  return hamiltonian;
+}
+
+// Compile all h_aa elements in a vector
+vector<double> make_ham_vec(Matrix C, Matrix H, int num_func) {
+  vector<double> ham_vec(num_func);
+  for (int i=0; i<num_func; ++i) {
+    double ham = compute_hamiltonian(C, H, i, num_func); 
+    ham_vec[i] = ham;
+  }
+  return ham_vec;
+}
+
+//
+//// Compute the second order correction to the energy
+//double second_order(int occ, int virt, BasisSet basis, Matrix C) {
+//  // Create two electron integral engine
+//  Engine eri_engine(Operator::coulomb,
+//            basis.max_nprim(),
+//            basis.max_l()
+//            );                  
+//  
+//  // Map shell index to basis function index
+//  auto shell2bf = basis.shell2bf();
+//
+//  // Point to each computed shell set
+//  const auto& buf_vec = eri_engine.results();
+//  
+//  double sum = 0.0;
+//  //cout << "sum " << sum << endl; 
+//  for (int i=0; i<occ; ++i) {
+//    for (auto s1=0; s1<basis.size(); ++s1) {
+//      auto bf1 = shell2bf[s1];
+//      auto n1 = basis[s1].size();
+//      //for (auto f1=0; f1<n1; ++f1) {
+//      //cout << "Hello world" << endl;
+//
+//        for (int j=i+1; j<occ; ++j) {
+//          for (auto s2=0; s2<basis.size(); ++s2) {
+//          auto bf2 = shell2bf[s2];
+//          auto n2 = basis[s2].size();
+//          //for (auto f2=0; f2<n2; ++f2) {
+//          //cout << "Hello world" << endl;        
+//
+//          for (int a=occ; a<virt; ++a) {
+//            cout << "a: " << a << endl;
+//            for (auto s3=0; s3<basis.size(); ++s3) {
+//            auto bf3 = shell2bf[s3];
+//            auto n3 = basis[s3].size();
+//          //for (auto f3=0; f3<n3; ++f3) {
+//            cout << "Hello world" << endl;      
+//
+//            for (int b=a+1; b<virt; ++b) {
+//              for (auto s4=0; s4<basis.size(); ++s4) {
+//                auto bf4 = shell2bf[s4];
+//                auto n4 = basis[s4].size();
+//                //for (auto f4=0; f4<n4; ++f4) {              
+//                eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);
+//                const auto& buf_1234 = buf_vec[0];
+//                auto d1 = n2*n3*n4;
+//                auto d2 = n3*n4;
+//                auto d3 = n4;
+//
+//                double ground = 0.0;
+//                cout << "ground: " << ground << endl;              
+//                for (auto f1=0; f1<n1; ++f1) {
+//                  for (auto f2=0; f2<n2; ++f2) {
+//                    for (auto f3=0; f3<n3; ++f3) {
+//                      for (auto f4=0; f4<n4; ++f4) {
+//                        ground = ground + buf_1234[f1*d1+f2*d2+f3*d3+f4]
+//                                          *C(bf1+f1,i)*C(bf2+f2,j)*C(bf3+f3,a)*C(bf4+f4,b);
+//                       }
+//                     }
+//                   }
+//                 }                       
+//
+//
+//                eri_engine.compute(basis[s1], basis[s3], basis[s2], basis[s4]);
+//                const auto& buf_1324 = buf_vec[0];
+//                auto d1pr = n3*n2*n4;
+//                auto d2pr = n2*n4;
+//                auto d3pr = n4;
+//
+//                double excited = 0.0;
+//                cout << "excited: " << excited << endl;
+//                for (auto f1=0; f1<n1; ++f1) {
+//                  for (auto f3=0; f3<n3; ++f3) {
+//                    for (auto f2=0; f2<n2; ++f2) {
+//                      for (auto f4=0; f4<n4; ++f4) {
+//                        ground = ground + buf_1324[f1*d1pr+f3*d2pr+f2*d3pr+f4]
+//                                          *C(bf1+f1,i)*C(bf3+f3,a)*C(bf3+f3,j)*C(bf4+f4,b);
+//                      }
+//                    }
+//                  }
+//                }
+//              //cout << "Ground: " << ground << endl;
+//              //cout << "Excited: " << excited << endl;  
+//              sum = sum + ground - excited;
+//              cout << "Sum: " << sum << endl;
+//              }
+//            }
+//          }
+//        }
+//      }
+//    }
+//  }
+//}
+//double new_sum = sum*sum;
+//return new_sum;
+//}
 
 
 
@@ -524,6 +597,9 @@ int main() {
 
   libint2::initialize();
 
+
+  // * * * Hartree Fock * * * \\
+
   // Read in molecular geometry
   std::vector<Atom> atoms = read_geom(COORDS);
 
@@ -584,6 +660,9 @@ int main() {
   Matrix F = H + G;
   cout << "The initial Fock (F) matrix: \n\n" << F << "\n" << endl;
 
+  // Form the initial coefficient (C) matrix
+  Matrix C(num_func,num_func);
+
   // Main iterative loop
 
   // Initialize the frobenius value
@@ -603,7 +682,7 @@ int main() {
     Matrix Cprime = es.eigenvectors();  
 
     // Calculated C from C'
-    Matrix C = X*Cprime;
+    C = X*Cprime;
     //cout << "The C matrix: \n\n" << C << "\n" << endl;
 
 
@@ -628,6 +707,10 @@ int main() {
     F = H + 2*J - K;
     iter += 1;
   }  
+  int num_virt = num_func - num_occ;
+  //double MPnum = second_order(num_occ, num_virt, basis, C); 
+  cout << "Occ: " << num_occ << endl;
+  cout << "Virt: " << num_virt << endl;
   cout << "The number of iterations is " << iter << endl;
   double elec_energy = 0.0;
   for (int i=0; i<num_func; ++i) {
@@ -641,6 +724,27 @@ int main() {
   cout << "The Hartree Fock energy is " << EHF << endl;
   cout << "The electronic energy is " << elec_energy << endl;
   cout << "The nuclear repulsion energy is " << nuc_energy << endl;
+  //cout << "The numerator of the MP2 correction is " << MPnum << endl;
+  
+
+  // * * * MP2 * * * \\
+
+  vector<double> eps_vec = make_eps_vec(C, F, num_func);
+  double orb_sum;
+  for (int i=0; i<num_func; ++i) {
+    cout << "Epsilon_" << i << " is " << eps_vec[i] << endl;
+    orb_sum += eps_vec[i];
+  }
+
+  vector<double> ham_vec = make_ham_vec(C, H, num_func);
+  double ham_sum;
+  for (int i=0; i<num_func; ++i) {
+    ham_sum += ham_vec[i];
+  }
+
+  cout << "The sum of the orbital energies is " << orb_sum << endl;
+  cout << "The hartree fock energy is " << (2.0*orb_sum) + (ham_sum/2.0) << endl;
+
   libint2::finalize();
 
   return 0;
