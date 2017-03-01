@@ -366,6 +366,187 @@ Matrix k_eri_compute(BasisSet basis, Matrix density_mat, int num_func) {
 return exchange;
 }
 
+// Make the aa matrix
+Matrix make_aa(BasisSet basis, Matrix C, int num_func, int a) {
+
+  // Declare aa matrix
+  Matrix aa(num_func, num_func);
+
+  // Create two electron integral engine
+  Engine eri_engine(Operator::coulomb,
+            basis.max_nprim(),
+            basis.max_l()
+            );                  
+
+  // Map shell index to basis function index
+  auto shell2bf = basis.shell2bf();
+
+  // Point to each computed shell set
+  const auto& buf_vec = eri_engine.results();
+
+  for (int s1=0; s1<basis.size(); ++s1) {
+    int bf1 = shell2bf[s1];
+    int n1 = basis[s1].size();
+    for (int f1=0; f1<n1; ++f1) {
+
+      for (int s2=0; s2<basis.size(); ++s2) {
+        int bf2 = shell2bf[s2];
+        int n2 = basis[s2].size();
+        for (int f2=0; f2<n2; ++f2) {
+          double sum = 0.0;
+
+          for (int s3=0; s3<basis.size(); ++s3) {
+            int bf3 = shell2bf[s3];
+            int n3 = basis[s3].size();
+
+            for (int s4=0; s4<basis.size(); ++s4) {
+              int bf4 = shell2bf[s4];
+              int n4 = basis[s4].size();
+
+              int d1 = n2*n3*n4;
+              int d2 = n3*n4;
+              int d3 = n4;
+
+              // Compute eris
+              eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);
+
+              // Point to computed shell set
+              const auto* buf_1234 = buf_vec[0];
+
+              sum += buf_1234[f1*d1 + f2*d2 + f3*d3 + f4]*C(bf3+f3, a)*C(bf4+f4, a);
+            }
+          }
+          aa(bf1+f1, bf2+f2) = sum;
+        }
+      }
+    }
+  }
+  return aa;
+}
+
+
+// Make the bb matrix
+Matrix make_bb(BasisSet basis, Matrix C, int num_func, int b) {
+
+  // Declare aa matrix
+  Matrix bb(num_func, num_func);
+
+  // Create two electron integral engine
+  Engine eri_engine(Operator::coulomb,
+            basis.max_nprim(),
+            basis.max_l()
+            );                  
+
+  // Map shell index to basis function index
+  auto shell2bf = basis.shell2bf();
+
+  // Point to each computed shell set
+  const auto& buf_vec = eri_engine.results();
+
+  for (int s1=0; s1<basis.size(); ++s1) {
+    int bf1 = shell2bf[s1];
+    int n1 = basis[s1].size();
+    for (int f1=0; f1<n1; ++f1) {
+
+      for (int s2=0; s2<basis.size(); ++s2) {
+        int bf2 = shell2bf[s2];
+        int n2 = basis[s2].size();
+        for (int f2=0; f2<n2; ++f2) {
+          double sum = 0.0;
+
+          for (int s3=0; s3<basis.size(); ++s3) {
+            int bf3 = shell2bf[s3];
+            int n3 = basis[s3].size();
+
+            for (int s4=0; s4<basis.size(); ++s4) {
+              int bf4 = shell2bf[s4];
+              int n4 = basis[s4].size();
+
+              int d1 = n2*n3*n4;
+              int d2 = n3*n4;
+              int d3 = n4;
+
+              // Compute eris
+              eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);
+
+              // Point to computed shell set
+              const auto* buf_1234 = buf_vec[0];
+
+              sum += buf_1234[f1*d1 + f2*d2 + f3*d3 + f4]*C(bf3+f3, b)*C(bf4+f4, b);
+            }
+          }
+          bb(bf1+f1, bf2+f2) = sum;
+        }
+      }
+    }
+  }
+  return bb;
+}
+
+
+
+// Make the ab = ba  matrix
+Matrix make_ab(BasisSet basis, Matrix C, int num_func, int a, int b) {
+
+  // Declare ab matrix
+  Matrix ab(num_func, num_func);
+
+  // Create two electron integral engine
+  Engine eri_engine(Operator::coulomb,
+            basis.max_nprim(),
+            basis.max_l()
+            );                  
+
+  // Map shell index to basis function index
+  auto shell2bf = basis.shell2bf();
+
+  // Point to each computed shell set
+  const auto& buf_vec = eri_engine.results();
+
+  for (int s1=0; s1<basis.size(); ++s1) {
+    int bf1 = shell2bf[s1];
+    int n1 = basis[s1].size();
+    for (int f1=0; f1<n1; ++f1) {
+
+      for (int s2=0; s2<basis.size(); ++s2) {
+        int bf2 = shell2bf[s2];
+        int n2 = basis[s2].size();
+        for (int f2=0; f2<n2; ++f2) {
+          double sum = 0.0;
+
+          for (int s3=0; s3<basis.size(); ++s3) {
+            int bf3 = shell2bf[s3];
+            int n3 = basis[s3].size();
+
+            for (int s4=0; s4<basis.size(); ++s4) {
+              int bf4 = shell2bf[s4];
+              int n4 = basis[s4].size();
+
+              int d1 = n2*n3*n4;
+              int d2 = n3*n4;
+              int d3 = n4;
+
+              // Compute eris
+              eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);
+
+              // Point to computed shell set
+              const auto* buf_1234 = buf_vec[0];
+
+              sum += buf_1234[f1*d1 + f2*d2 + f3*d3 + f4]*C(bf3+f3, a)*C(bf4+f4, b);
+            }
+          }
+          ab(bf1+f1, bf2+f2) = sum;
+        }
+      }
+    }
+  }
+  return ab;
+}
+
+
+
+
+
 // Compute the orbital energies
 double compute_epsilon(Matrix C, Matrix F, int i, int n) {
   double epsilon = 0.0;
@@ -387,49 +568,6 @@ vector<double> make_eps_vec(Matrix C, Matrix F, int num_func) {
   return eps_vec;
 }
 
-// Compute integrals for MP2 numerator
-//double mp2_int() {
-//  for (int mu=0; mu<num_func; ++mu) {
-//    for (int nu=0; nu<num_func; ++nu) {
-//      for (int rho=0; rho <num_func; ++rho) {
-//        for (int sigma=0; sigma<num_func; ++sigma) {
-//          
-//
-//
-//
-//}
-
-
-// Compute numerator of MP2 correction
-double comp_num() {
-  for (int i=0; i<num_occ; ++i) { // occupied -> column index
-    for (int s1=0; s1<basis.size(); ++s1) {
-      int bf1 = shell2bf[s1];
-      int n1 = basis[s1].size();
-
-      for (int j=i; j<num_occ; ++j) { // occupied -> column index
-        for (int s2=0; s2<basis.size(); ++s2) {
-          int bf2 = shell2bf[s2];
-          int n2 = basis[s2].size();
-
-          for (a=num_occ; a<num_func; ++a) { // virtual -> column index
-            for (int s3=0; s3<basis.size(); ++s3) {
-              int bf3 = shell2bf[s3];
-              int n3 = basis[s3].size();
- 
-              for (b=a; b<num_func; ++b) { // virtual -> column index
-                for (int s4=0; s4<basis.size(); ++s4) {      
-                  int bf4 = shell2bf[s4];
-                  int n4 = basis[s4].size();
-
-          for (int mu=0; mu<num_func; ++mu) { // basis funcs within MO i -> row index
-            for (int nu=0; nu<num_func; ++nu) { // basis funcs within MO j -> row index
-              for (int rho=0; rho<num_func; ++rho) { // basis funcs within MO a -> row index
-                for (int sigma=0; sigma<num_func; ++sigma) { // basis funcs within MO b -> row index
-                                    
-
-
-}
 
 // Compute denominator of MP2 correction
 double comp_denom(vector<double> eps_vec, int num_occ, int num_func) {
@@ -470,10 +608,31 @@ vector<double> make_ham_vec(Matrix C, Matrix H, int num_func) {
   return ham_vec;
 }
 
+
+
+// Make unoccupied density matrix
+Matrix unocc_density(int num_func, int num_occ, Matrix C) {
+  Matrix unocc_P(num_func, num_func);
+  for (int i=0; i<num_func; ++i) {
+    for (int j=0; j<num_func; ++j) {
+      double ij = 0.0;
+      for (int k=num_occ; k<num_func; ++k) {
+        ij += C(i,k)*C(j,k);
+      }
+    unocc_P(i,j) = ij;
+    }
+  }
+  return unocc_P;
+}
+
 //
-//// Compute the second order correction to the energy
-//double second_order(int occ, int virt, BasisSet basis, Matrix C) {
-//  // Create two electron integral engine
+//// MP2 numerator  - (i j | a b)
+//Matrix unocc_comp(int num_func, Matrix density_mat, BasisSet basis) {
+//
+//  // Declare matrix to hold integrals  
+//  Matrix first_int(num_func, num_func);
+//
+//  // Integral engine
 //  Engine eri_engine(Operator::coulomb,
 //            basis.max_nprim(),
 //            basis.max_l()
@@ -484,170 +643,71 @@ vector<double> make_ham_vec(Matrix C, Matrix H, int num_func) {
 //
 //  // Point to each computed shell set
 //  const auto& buf_vec = eri_engine.results();
-//  
-//  double sum = 0.0;
-//  //cout << "sum " << sum << endl; 
-//  for (int i=0; i<occ; ++i) {
-//    for (auto s1=0; s1<basis.size(); ++s1) {
-//      auto bf1 = shell2bf[s1];
-//      auto n1 = basis[s1].size();
-//      //for (auto f1=0; f1<n1; ++f1) {
-//      //cout << "Hello world" << endl;
 //
-//        for (int j=i+1; j<occ; ++j) {
-//          for (auto s2=0; s2<basis.size(); ++s2) {
-//          auto bf2 = shell2bf[s2];
-//          auto n2 = basis[s2].size();
-//          //for (auto f2=0; f2<n2; ++f2) {
-//          //cout << "Hello world" << endl;        
+//  for (int s1=0; s1<basis.size(); ++s1) {
+//    int bf1 = shell2bf[s1];
+//    int n1 = basis[s1].size();
+//    for (int f1=0; f1<n1; ++f1) {
 //
-//          for (int a=occ; a<virt; ++a) {
-//            cout << "a: " << a << endl;
-//            for (auto s3=0; s3<basis.size(); ++s3) {
-//            auto bf3 = shell2bf[s3];
-//            auto n3 = basis[s3].size();
-//          //for (auto f3=0; f3<n3; ++f3) {
-//            cout << "Hello world" << endl;      
+//      for (int s2=0; s2<basis.size(); ++s2) {
+//        int bf2 = shell2bf[s2];
+//        int n2 = basis[s2].size();
+//        for (int f2=0; f2<n2; ++f2) {
 //
-//            for (int b=a+1; b<virt; ++b) {
-//              for (auto s4=0; s4<basis.size(); ++s4) {
-//                auto bf4 = shell2bf[s4];
-//                auto n4 = basis[s4].size();
-//                //for (auto f4=0; f4<n4; ++f4) {              
-//                eri_engine.compute(basis[s1], basis[s2], basis[s3], basis[s4]);
-//                const auto& buf_1234 = buf_vec[0];
-//                auto d1 = n2*n3*n4;
-//                auto d2 = n3*n4;
-//                auto d3 = n4;
-//
-//                double ground = 0.0;
-//                cout << "ground: " << ground << endl;              
-//                for (auto f1=0; f1<n1; ++f1) {
-//                  for (auto f2=0; f2<n2; ++f2) {
-//                    for (auto f3=0; f3<n3; ++f3) {
-//                      for (auto f4=0; f4<n4; ++f4) {
-//                        ground = ground + buf_1234[f1*d1+f2*d2+f3*d3+f4]
-//                                          *C(bf1+f1,i)*C(bf2+f2,j)*C(bf3+f3,a)*C(bf4+f4,b);
-//                       }
-//                     }
-//                   }
-//                 }                       
+//          double sum = 0.0; // initialize a sum for s1/f1, s2/f2
 //
 //
-//                eri_engine.compute(basis[s1], basis[s3], basis[s2], basis[s4]);
-//                const auto& buf_1324 = buf_vec[0];
-//                auto d1pr = n3*n2*n4;
-//                auto d2pr = n2*n4;
-//                auto d3pr = n4;
+//          for (int s3=0; s3<basis.size(); ++s3) {
+//            int bf3 = shell2bf[s3];
+//            int n3 = basis[s3].size();
+//            
+//            for (int s4=0; s4<basis.size(); ++s4) {
+//              int bf4 = shell2bf[s4];
+//              int n4 = basis[s4].size();
+//            
+//              int d1 = n2*n3*n4;
+//              int d2 = n3*n4;
+//              int d3 = n4;
 //
-//                double excited = 0.0;
-//                cout << "excited: " << excited << endl;
-//                for (auto f1=0; f1<n1; ++f1) {
-//                  for (auto f3=0; f3<n3; ++f3) {
-//                    for (auto f2=0; f2<n2; ++f2) {
-//                      for (auto f4=0; f4<n4; ++f4) {
-//                        ground = ground + buf_1324[f1*d1pr+f3*d2pr+f2*d3pr+f4]
-//                                          *C(bf1+f1,i)*C(bf3+f3,a)*C(bf3+f3,j)*C(bf4+f4,b);
-//                      }
-//                    }
-//                  }
+//              // Compute integrals
+//              eri_engine.compute(basis[s1],basis[s2],basis[s3],basis[s4]);
+//
+//              // Point to computed shell set of integrals
+//              const auto& buf_1234 = buf_vec[0];
+//
+//              for (int f3=0; f3<n3; ++f3) {
+//                for (int f4=0; f4<n4; ++f4) {
+//                  sum += buf_1234[f1*d1 + f2*d2 + f3*d3 + f4]*density_mat(bf3+f3, bf4+f4);
 //                }
-//              //cout << "Ground: " << ground << endl;
-//              //cout << "Excited: " << excited << endl;  
-//              sum = sum + ground - excited;
-//              cout << "Sum: " << sum << endl;
 //              }
 //            }
 //          }
+//          first_int(bf1+f1,bf2+f2) = sum;
 //        }
 //      }
 //    }
 //  }
-//}
-//double new_sum = sum*sum;
-//return new_sum;
-//}
-
-
-
-
-//
-//// Compute the occupied molecular orbitals from the basis
-//// functions and the expansion coefficients
-//std::vector<double> occ(Matrix C, int num_func, int num_occ, BasisSet basis) {
-//  std::vector<double> occ_orb(num_occ);
-//  for (int j=0; j<num_occ; ++j) {
-//    double orbital = 0.0;
-//    for (int i=0; i<num_func; ++i) {
-//      double coef = C(i,j);
-//      double bf = basis[i];
-//      orbital = orbital + coef*bf;
-//    }
-//  occ_orb[j] = orbital;
-//  } 
-//return occ_orb;
+//  return first_int;
 //}
 //
+//// MP2 numerator - (i j | a b) continued
+//Matrix occ_comp(Matrix integrals, Matrix density_mat, int num_func) {
 //
-//// Compute the virtual molecular orbitals from the basis
-//// functions and the expansion coefficients
-//std::vector<double> virt(Matrix C, int num_func, int num_occ, int num_virt, BasisSet basis) {
-//  std::vector<double> virt_orb(num_virt);
-//  for (int j=num_occ; j<num_func; ++j) {
-//    double orbital = 0.0;
-//    for (int i=0; i<num_func; ++i) {
-//      double coef = C(i,j);
-//      double bf = basis[i];
-//      orbital = orbital + coef*bf;
-//    }
-//  virt_orb[j] = orbital;
-//  }
-//return virt_orb;
-//}
-//
-//
-//// Compute the second order correction to the energy
-//double second_order(Matrix C, Matrix F, std::vector<double> occ_orb,
-//                    std::vector<double> virt_orb, int num_func) {
+//  Matrix first_integrals(num_func, num_func); 
 //  
-//  // Create two electron integral engine
-//  Engine eri_engine(Operator::coulomb,
-//            basis.max_nprim(),
-//            basis.max_l()
-//            );           
-//       
-//  double second_order = 0.0;
 //  for (int i=0; i<num_func; ++i) {
-//    double epsi = 0.0;
-//    for (int k=0; k<num_func; ++k) {
-//      epsi = epsi + F(k,i);
-//    }
-//    for (int j=i+1; j<num_func; ++j) {
-//      double epsj = 0.0;
-//      for (int k=0; k<num_func; ++k) {
-//        epsj = epsj + F(k,j);
+//    for (int j=0; j<num_func; ++j) {
+//      double ij = 0;
+//      for (int k=0; k<num_occ; ++k) {
+//        ij += integrals()     
 //      }
-//      for (int a=0; a<num_func; ++a) {
-//        double epsa = 0.0;
-//        for (int k=0; k<num_func; ++k) {
-//          epsa = epsa + F(k,a);
-//        }
-//        for (int b=a+1; b<num_func; ++b) {
-//          double epsb = 0.0;
-//          for (int k=0; k<num_func; ++k) {
-//            epsb = epsb + F(k,b);
-//          }
-//          double j = eri_engine.compute(occ_orb[i], occ_orb[j], virt_orb[a], virt_orb[b]);
-//          double k = eri_engine.compute(occ_orb[i], virt_orb[a], occ_orb[j], virt_orb[b]);
-//         
-//          double new_term = ((j - k)*(j - k))/(epsi + epsj - epsa - epsb);
-//          second_order = second_order + new_term; 
-//          }    
-//        }
-//      }
-//    }
-//return second_order;
+//
 //} 
+
+
+
+
+
 
 int main() {
 
@@ -801,8 +861,8 @@ int main() {
   double mp2_denom = comp_denom(eps_vec, num_occ, num_func);
 
   cout << "The sum of the orbital energies is " << orb_sum << endl;
-  cout << "The hartree fock energy is " << (2.0*orb_sum) + (ham_sum/2.0) << endl;
-  cout << "The MP2 denominator term is " << mp2_denom << endl;
+  //cout << "The hartree fock energy is " << (2.0*orb_sum) + (ham_sum/2.0) << endl;
+  //cout << "The MP2 denominator term is " << mp2_denom << endl;
   libint2::finalize();
 
   return 0;
